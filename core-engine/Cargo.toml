@@ -1,0 +1,23 @@
+[package]
+name = "core-engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+hex = "0.4"
+rand = { version = "0.8", features = ["small_rng"] }
+getrandom = { version = "0.2", features = ["js"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets", "getrandom"] }
+chacha20poly1305 = "0.10"
+base64 = "0.21"
+console_error_panic_hook = "0.1.7"
+# NEU: Der WebAssembly Speicher-Manager
+wee_alloc = "0.4.5"
+
+[profile.release]
+# Wir nehmen lto raus, um Abstürze zu vermeiden, lassen aber die Größenoptimierung drin
+opt-level = "s"

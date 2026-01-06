@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    font-family: 'Fira Code', monospace;
+    line-height: 1.2;
+    background-color: #0c0c0c;
+    color: #e0e0e0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #0c0c0c;
+    /* 1. Globales Markieren verbieten */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* --- 1. DARK SCROLLBARS (Hacker Style) --- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #27ae60; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* --- 2. XTERM SPEZIFISCH (Selection Fix) --- */
+
+.terminal-wrapper {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+/* Die Xterm-Leinwand */
+.xterm-viewport {
+    background-color: #0c0c0c !important;
+    overflow-y: auto !important;
+}
+
+/* WICHTIG: Die Zeilen-Container selbst dürfen NICHT markierbar sein */
+.xterm-rows {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+/* Jede einzelne Zeile (div) -> Selektion verboten (verhindert Balken-Selektion) */
+.xterm-rows > div {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+/* NUR die Buchstaben (spans) dürfen markiert werden */
+.xterm-rows span {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text;
+}
+
+/* Custom Selection Farbe (Hacker Grün) */
+::selection {
+    background: rgba(39, 174, 96, 0.99); /* Fast deckend für Kontrast */
+    color: black; /* Schwarzer Text auf grünem Grund (klassisches Terminal) */
+}
+
+/* Firefox Support */
+::-moz-selection {
+    background: rgba(39, 174, 96, 0.99);
+    color: black;
+}
+
+/* --- 3. SPLIT LAYOUT & GUTTER --- */
+.split { display: flex; flexDirection: row; height: 100%; width: 100%; }
+.split-vertical { flexDirection: column; }
+
+.gutter {
+    background-color: #1a1a1a;
+    background-repeat: no-repeat;
+    background-position: 50%;
+    flex-shrink: 0;
+    transition: background-color 0.2s;
+    z-index: 10;
+}
+
+.gutter:hover { background-color: #27ae60; cursor: col-resize; }
+.gutter.gutter-vertical { cursor: row-resize; }
