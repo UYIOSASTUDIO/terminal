@@ -14,74 +14,61 @@ body {
     padding: 0;
     overflow: hidden;
     background-color: #0c0c0c;
-    /* 1. Globales Markieren verbieten */
     user-select: none;
-    -webkit-user-select: none;
 }
 
-/* --- 1. DARK SCROLLBARS (Hacker Style) --- */
+/* Scrollbars */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #27ae60; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* --- 2. XTERM SPEZIFISCH (Selection Fix) --- */
+/* --- XTERM FIXES --- */
 
 .terminal-wrapper {
-    user-select: none !important;
-    -webkit-user-select: none !important;
+    width: 100%;
+    height: 100%;
+    background-color: #0c0c0c;
 }
 
-/* Die Xterm-Leinwand */
 .xterm-viewport {
     background-color: #0c0c0c !important;
     overflow-y: auto !important;
 }
 
-/* WICHTIG: Die Zeilen-Container selbst dürfen NICHT markierbar sein */
+/* Dies hier ist der Schlüssel gegen das Markieren von leeren Zeilen */
 .xterm-rows {
-    user-select: none !important;
-    -webkit-user-select: none !important;
+    height: 100%;
 }
 
-/* Jede einzelne Zeile (div) -> Selektion verboten (verhindert Balken-Selektion) */
+/* Wir deaktivieren Maus-Events auf der ganzen Zeile... */
 .xterm-rows > div {
-    user-select: none !important;
-    -webkit-user-select: none !important;
+    pointer-events: none;
 }
 
-/* NUR die Buchstaben (spans) dürfen markiert werden */
+/* ...und aktivieren sie NUR für den Text wieder! */
 .xterm-rows span {
-    user-select: text !important;
-    -webkit-user-select: text !important;
+    pointer-events: auto;
+    user-select: text;
     cursor: text;
 }
 
-/* Custom Selection Farbe (Hacker Grün) */
+/* Custom Selection Farbe */
 ::selection {
-    background: rgba(39, 174, 96, 0.99); /* Fast deckend für Kontrast */
-    color: black; /* Schwarzer Text auf grünem Grund (klassisches Terminal) */
-}
-
-/* Firefox Support */
-::-moz-selection {
     background: rgba(39, 174, 96, 0.99);
     color: black;
 }
 
-/* --- 3. SPLIT LAYOUT & GUTTER --- */
+/* Split Layout */
 .split { display: flex; flexDirection: row; height: 100%; width: 100%; }
 .split-vertical { flexDirection: column; }
-
 .gutter {
     background-color: #1a1a1a;
     background-repeat: no-repeat;
     background-position: 50%;
     flex-shrink: 0;
-    transition: background-color 0.2s;
     z-index: 10;
 }
-
 .gutter:hover { background-color: #27ae60; cursor: col-resize; }
 .gutter.gutter-vertical { cursor: row-resize; }

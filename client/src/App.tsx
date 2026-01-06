@@ -10,13 +10,11 @@ const SIGNALING_SERVER = "http://127.0.0.1:3001";
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 function App() {
-    // --- GLOBAL REFS ---
     const systemRef = useRef<TerminalSystem | null>(null);
     const cryptoRef = useRef<CryptoEngine | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const p2pRef = useRef<P2PManager | null>(null);
 
-    // --- STATE ---
     const [booted, setBooted] = useState(false);
     const [bootLogs, setBootLogs] = useState<string[]>([]);
     const [terminals, setTerminals] = useState<number[]>([1]);
@@ -26,79 +24,98 @@ function App() {
 
     useEffect(() => {
         const bootSequence = async () => {
-            // 1. BOOT START
+            // 1. KERNEL LOAD
             addBootLog("\x1b[1;34m[*]\x1b[0m Booting Kernel...");
-            await sleep(300);
+            await sleep(200);
 
-            // 2. WASM
             try {
-                addBootLog("\x1b[1;34m[*]\x1b[0m Loading WebAssembly Module (core_engine)...");
+                addBootLog("\x1b[1;34m[*]\x1b[0m Loading WebAssembly Module...");
                 await init();
-                addBootLog("\x1b[1;32m[+]\x1b[0m WASM Module mounted into memory.");
+                addBootLog("\x1b[1;32m[+]\x1b[0m WASM Module mounted.");
             } catch (e) {
                 addBootLog(`\x1b[1;31m[-]\x1b[0m Kernel Panic: ${e}`);
                 return;
             }
 
-            // 3. RUST
-            addBootLog("\x1b[1;34m[*]\x1b[0m Initializing Rust Subsystems...");
+            // 2. SYSTEM INIT
             systemRef.current = TerminalSystem.new();
-            addBootLog("\x1b[1;32m[+]\x1b[0m Virtual Filesystem (vfs) mounted.");
+            addBootLog("\x1b[1;32m[+]\x1b[0m VFS mounted.");
 
             cryptoRef.current = CryptoEngine.new();
             addBootLog("\x1b[1;32m[+]\x1b[0m CryptoEngine initialized.");
 
-            // 4. IDENTITY
             const myKey = cryptoRef.current?.get_public_key_as_hex();
-            if (myKey) addBootLog(`\x1b[1;32m[+]\x1b[0m Identity derived: ${myKey.substring(0,16)}...`);
+            if (myKey) addBootLog(`\x1b[1;32m[+]\x1b[0m Identity: ${myKey.substring(0,16)}...`);
 
-            // 5. NETWORK
-            addBootLog(`\x1b[1;34m[*]\x1b[0m Initiating Uplink to ${SIGNALING_SERVER}...`);
+            // 3. NETWORK
+            addBootLog(`\x1b[1;34m[*]\x1b[0m Connecting to Uplink...`);
             const socket = io(SIGNALING_SERVER, { transports: ['websocket'] });
             socketRef.current = socket;
 
             await new Promise<void>(resolve => {
-                setTimeout(resolve, 1500);
+                setTimeout(resolve, 1000);
                 socket.on('connect', resolve);
             });
 
-            if(socket.connected) addBootLog("\x1b[1;32m[+]\x1b[0m Uplink established. Channel Secure.");
-            else addBootLog("\x1b[1;33m[!]\x1b[0m Connection Timeout. Running Offline.");
+            if(socket.connected) {
+                addBootLog("\x1b[1;32m[+]\x1b[0m Uplink established.");
+                if (myKey) socket.emit('register', myKey);
+            } else {
+                addBootLog("\x1b[1;33m[!]\x1b[0m Offline Mode.");
+            }
 
-            // 6. P2P & EVENTS
+            // 4. P2P MANAGER & LISTENERS
             if (myKey && socket.connected) {
-                socket.emit('register', myKey);
-
                 p2pRef.current = new P2PManager(
                     socket,
                     (encryptedMsg) => {
+                        // MESSAGE RECEIVE HANDLER
                         if (cryptoRef.current) {
                             try {
                                 const plain = cryptoRef.current.decrypt(encryptedMsg);
                                 window.dispatchEvent(new CustomEvent('p2p-message', { detail: plain }));
-                            } catch (e) { console.error("Decryption failed"); }
+                            } catch (e) { console.error("Decryption failed", e); }
                         }
                     },
-                    (status) => { console.log("NET STATUS:", status); }
+                    (status) => {
+                        // Status Updates auch im Terminal anzeigen
+                        window.dispatchEvent(new CustomEvent('p2p-message', { detail: `\x1b[33m[NET]\x1b[0m ${status}` }));
+                    }
                 );
 
+                // --- HIER FEHLTE WAS! FÜGE DIESEN BLOCK HINZU: ---
+
+                // 1. Wenn wir angerufen werden (war schon da)
                 socket.on('incoming-connection', (data) => {
                     if (cryptoRef.current) {
                         try {
                             cryptoRef.current.derive_secret(data.from);
-                            window.dispatchEvent(new CustomEvent('p2p-message', { detail: "SECURE CHANNEL ESTABLISHED" }));
+                            window.dispatchEvent(new CustomEvent('p2p-message', { detail: "\x1b[32m>>> SECURE HANDSHAKE ACCEPTED <<<\x1b[0m" }));
                         } catch(e) { console.error(e); }
                     }
                     p2pRef.current?.handleIncomingOffer(data.offer, data.from);
                 });
+
+                // 2. WICHTIG: Wenn der andere ANTWORTET (Das fehlte!)
+                socket.on('connection-accepted', (data) => {
+                    // data enthält { from, answer }
+                    if (cryptoRef.current) {
+                        // Optional: Secret Check erneut validieren
+                        window.dispatchEvent(new CustomEvent('p2p-message', { detail: "\x1b[32m>>> LINK ESTABLISHED <<<\x1b[0m" }));
+                    }
+                    // Die Antwort in WebRTC einspeisen
+                    p2pRef.current?.handleAnswer(data.answer);
+                });
+
+                // ------------------------------------------------
 
                 socket.on('ice-candidate', (data) => {
                     p2pRef.current?.handleCandidate(data.candidate);
                 });
             }
 
-            await sleep(500);
-            setBooted(true); // BOOT FERTIG -> GRID ANZEIGEN
+            await sleep(600);
+            setBooted(true);
         };
 
         bootSequence();
@@ -152,22 +169,17 @@ function App() {
         );
     }
 
-    // Styles
+    // Styles for Grid
     const containerStyle = {
         height: '100vh',
         width: '100vw',
-        background: '#0c0c0c', // Schwarz gegen weiße Balken
+        background: '#0c0c0c',
         padding: '10px',
         boxSizing: 'border-box' as const,
-        overflow: 'hidden' // Keine Scrollbars am Container
+        overflow: 'hidden'
     };
 
-    const wrapperStyle = {
-        width: '100%',
-        height: '100%',
-        overflow: 'hidden',
-        background: '#0c0c0c' // Schwarz gegen weiße Balken
-    };
+    const wrapperStyle = { width: '100%', height: '100%', overflow: 'hidden', background: '#0c0c0c' };
 
     // 2. GRID LAYOUT
     if (terminals.length <= 3) {
@@ -179,7 +191,7 @@ function App() {
                     style={{ display: 'flex', flexDirection: 'row', width: '100%', height: '100%' }}
                     sizes={terminals.map(() => 100/terminals.length)}
                     minSize={100}
-                    gutterSize={4} // HIER: Dünnere Rahmen (4px)
+                    gutterSize={4}
                 >
                     {terminals.map(id => (
                         <div key={id} style={wrapperStyle}>
@@ -202,9 +214,8 @@ function App() {
                     className="split-vertical"
                     style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}
                     sizes={[50, 50]}
-                    gutterSize={4} // HIER: Dünnere Rahmen
+                    gutterSize={4}
                 >
-                    {/* OBEN */}
                     <div style={wrapperStyle}>
                         <Split
                             key={`top-${topRow.length}`}
@@ -213,15 +224,9 @@ function App() {
                             sizes={topRow.map(() => 100/topRow.length)}
                             gutterSize={4}
                         >
-                            {topRow.map(id => (
-                                <div key={id} style={wrapperStyle}>
-                                    {renderTerm(id)}
-                                </div>
-                            ))}
+                            {topRow.map(id => <div key={id} style={wrapperStyle}>{renderTerm(id)}</div>)}
                         </Split>
                     </div>
-
-                    {/* UNTEN */}
                     <div style={wrapperStyle}>
                         <Split
                             key={`btm-${bottomRow.length}`}
@@ -230,11 +235,7 @@ function App() {
                             sizes={bottomRow.map(() => 100/bottomRow.length)}
                             gutterSize={4}
                         >
-                            {bottomRow.map(id => (
-                                <div key={id} style={wrapperStyle}>
-                                    {renderTerm(id)}
-                                </div>
-                            ))}
+                            {bottomRow.map(id => <div key={id} style={wrapperStyle}>{renderTerm(id)}</div>)}
                         </Split>
                     </div>
                 </Split>
